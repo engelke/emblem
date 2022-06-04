@@ -13,11 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -eu
+set -eux
 
 _error_report() {
   echo >&2 "Exited [$?] at line $(caller):"
-  pr -tn $0 | tail -n+$(($1 - 3)) | head -n7 | sed "4s/^\s*/>>> /"
+  cat -n $0 | tail -n+$(($1 - 3)) | head -n7 | sed "4s/^\s*/>>> /"
 }
 trap '_error_report $LINENO' ERR
 
@@ -81,6 +81,9 @@ STAGE_ENVIRONMENT_DIR=terraform/environments/staging
 export TF_VAR_project_id=${STAGE_PROJECT}
 export TF_VAR_ops_project_id=${OPS_PROJECT}
 terraform -chdir=${STAGE_ENVIRONMENT_DIR} init
+terraform -chdir=${STAGE_ENVIRONMENT_DIR} import \
+    module.emblem_staging.google_storage_bucket.sessions \
+    "${STAGE_PROJECT}-sessions" || true
 terraform -chdir=${STAGE_ENVIRONMENT_DIR} apply --auto-approve
 
 ## Prod Project ##
@@ -90,6 +93,9 @@ PROD_ENVIRONMENT_DIR=terraform/environments/prod
 export TF_VAR_project_id=${PROD_PROJECT}
 export TF_VAR_ops_project_id=${OPS_PROJECT}
 terraform -chdir=${PROD_ENVIRONMENT_DIR} init
+terraform -chdir=${PROD_ENVIRONMENT_DIR} import \
+    module.emblem_prod.google_storage_bucket.sessions \
+    "${PROD_PROJECT}-sessions" || true
 terraform -chdir=${PROD_ENVIRONMENT_DIR} apply --auto-approve
 fi
 
@@ -162,13 +168,13 @@ gcloud run deploy content-api \
     --project "${STAGE_PROJECT}" \
     --region "${REGION}" 
 
-STAGING_API_URL=$(gcloud run services describe content-api --project "${STAGE_PROJECT}" --region ${REGION} --format 'value(status.url)')
+STAGE_API_URL=$(gcloud run services describe content-api --project "${STAGE_PROJECT}" --region ${REGION} --format 'value(status.url)')
 gcloud run deploy website \
     --allow-unauthenticated \
     --image "${REGION}-docker.pkg.dev/${OPS_PROJECT}/website/website:${SHORT_SHA}" \
     --service-account "website-manager@${STAGE_PROJECT}.iam.gserviceaccount.com" \
     --update-env-vars "EMBLEM_SESSION_BUCKET=${STAGE_PROJECT}-sessions" \
-    --update-env-vars "EMBLEM_API_URL=${STAGING_API_URL}" \
+    --update-env-vars "EMBLEM_API_URL=${STAGE_API_URL}" \
     --project "${STAGE_PROJECT}" \
     --region "${REGION}" \
     --tag "latest"

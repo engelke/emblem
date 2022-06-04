@@ -40,7 +40,7 @@ echo "###################################################"
 gcloud pubsub topics delete gcr \
     --project "$OPS_PROJECT" \
     || true
-gcloud pubsub topics delete nightly_builds \
+gcloud pubsub topics delete nightly-builds \
     --project "$OPS_PROJECT" \
     || true
 gcloud pubsub topics delete "canary-${PROD_PROJECT}" \
@@ -137,7 +137,7 @@ gcloud scheduler jobs delete nightly-builds \
     || true
 
 # Remove existing Terraform state (Part 1)
-pushd "terraform/ops"
+pushd terraform/ops
 terraform init
 terraform apply \
     -destroy --auto-approve \
@@ -153,7 +153,7 @@ APP_PROJECTS=(
 
 pushd terraform/app
 for proj in ${APP_PROJECTS[@]}; do
-cat > terraform.tfvars <<EOF
+    cat > terraform.tfvars <<EOF
 google_ops_project_id = "${OPS_PROJECT}"
 google_project_id = "${proj}"
 EOF
